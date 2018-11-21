@@ -2,7 +2,7 @@
 #include "dt_ind.mqh"
 
 #define MAGIC 661666
-#define EXPERT DtExpert
+#define __EXPERT__ DtExpert
 
 input int inp_max_concurrent_trades = 5;//Max concurrent trades
 input double inp_lots = 0.1;//Lots
@@ -27,11 +27,9 @@ input int inp_dt3_sto_period = 8;//STO period
 input int inp_dt3_sk_period = 5;//K period
 input int inp_dt3_sd_period = 3;//D period
 
-
 //+------------------------------------------------------------------+
-//|                                                                  |
+//| DtExpert headers. The main program. 
 //+------------------------------------------------------------------+
-
 class DtExpert : public Expert
 {
  protected:
@@ -41,16 +39,16 @@ class DtExpert : public Expert
    bool           m_indicators_ready;
  public: //overrides
    DtExpert():m_indicators_ready(false){}
-   virtual bool on_init(const int magic, const string symbol=NULL) override; 
-   virtual bool on_tick() override;
-   virtual int  signals() override;
+   virtual bool   on_init(const int magic, const string symbol=NULL) override; 
+   virtual bool   on_tick() override;
+   virtual int    signals() override;
  public: //unique
-   bool can_trade();
+   bool           can_trade();
  protected:
-   bool indicators_ready();
+   bool           indicators_ready();
 };
 //+------------------------------------------------------------------+
-//|                                                                  |
+//| DtExpert src
 //+------------------------------------------------------------------+
 
 bool DtExpert::on_init(const int magic, const string symbol=NULL) override 
@@ -78,7 +76,10 @@ bool DtExpert::on_init(const int magic, const string symbol=NULL) override
       inp_dt3_sk_period, 
       inp_dt3_sd_period
    );
-   return (create1 && create2 && create3);
+   bool init = (create1 && create2 && create3);
+   if(!init)
+      Print("Initialization failed in DtExpert");
+   return init;
 }
 
 bool DtExpert::on_tick(void) override

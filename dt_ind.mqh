@@ -4,6 +4,7 @@
 //|                                       http://www.companyname.net |
 //+------------------------------------------------------------------+
 #resource "ModernDtOscillator.ex4"
+
 #include <Indicators\Indicator.mqh>
 //+------------------------------------------------------------------+
 //|                                                                  |
@@ -49,7 +50,7 @@ protected:
 //+------------------------------------------------------------------+
 //| Constructor                                                      |
 //+------------------------------------------------------------------+
-CiDtOscillator::CiDtOscillator(void) :           m_rsi_period(-1),
+CiDtOscillator::CiDtOscillator(void) : m_rsi_period(-1),
                                        m_sto_period(-1),
                                        m_sk_period(-1),
                                        m_sd_period(-1),
@@ -87,7 +88,6 @@ bool CiDtOscillator::Initialize(const string symbol,const ENUM_TIMEFRAMES period
                                 const ENUM_MA_METHOD ma_method=MODE_SMA)
   {
    m_name          = "DT Oscillator";
-//--- save settings
    m_rsi_period    = RsiPeriod;
    m_sto_period    = StoPeriod;
    m_sk_period     = SkPeriod;

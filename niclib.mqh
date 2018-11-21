@@ -83,10 +83,10 @@ class Expert : public CObject
    virtual bool on_init(const int magic, const string symbol=NULL);
    virtual bool on_tester()   { return true;}
    virtual bool on_deinit(const int reason) { return true; } 
-   virtual bool on_chartevent   (  const int id,
-                                 const long &lparam,
-                                 const double &dparam,
-                                 const string &sparam){ return true; }
+   virtual bool on_chartevent(const int    id,
+                              const long   &lparam,
+                              const double &dparam,
+                              const string &sparam){ return true; }
    //SIGNALS
    virtual int  signals()     { return 0; }
    
@@ -215,10 +215,15 @@ double Expert::_rlot(const double lots)
 bool Expert::_market_buy(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0)
 {
    int ticket = OrderSend(
-      m_symbol, OP_BUY, this._rlot(volume), this._rtick(m_tick.ask), slippage,
+      m_symbol, 
+      OP_BUY, 
+      this._rlot(volume), 
+      this._rtick(m_tick.ask), 
+      slippage,
       sl==0 ? 0.0 : this._rtick(m_tick.ask - sl * m_point),
       tp==0 ? 0.0 : this._rtick(m_tick.ask + tp * m_point),
-      comment, m_magic
+      comment, 
+      m_magic
    );
    return ticket >= 0;
 }
@@ -226,10 +231,15 @@ bool Expert::_market_buy(double volume, int sl=0, int tp=0, string comment=NULL,
 bool Expert::_market_sell(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0)
 {
    int ticket = OrderSend(
-      m_symbol, OP_SELL, this._rlot(volume), this._rtick(m_tick.bid), slippage,
+      m_symbol, 
+      OP_SELL, 
+      this._rlot(volume), 
+      this._rtick(m_tick.bid), 
+      slippage,
       sl==0 ? 0.0 : this._rtick(m_tick.bid + sl * m_point),
       tp==0 ? 0.0 : this._rtick(m_tick.bid - tp * m_point),
-      comment, m_magic
+      comment, 
+      m_magic
    );
    return ticket >= 0;
 }

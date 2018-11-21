@@ -6,14 +6,14 @@
 #property strict
 #include "dt_ea.mqh"
 
-EXPERT *expert;
+__EXPERT__ *expert;
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   expert = new EXPERT();
-   if(!expert.on_init(MAGIC))
+   expert = new __EXPERT__(); //MACRO overwrites this with proper class name
+   if(!expert.on_init(MAGIC)) //MAGIC always needs to be defined in the header file
       return INIT_FAILED;
    return INIT_SUCCEEDED;
 }
@@ -22,7 +22,8 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-   expert.on_deinit(reason);
+   if(!expert.on_deinit(reason))
+      Print(VERBOSE_ERROR);
    delete expert;
 }
 //+------------------------------------------------------------------+
