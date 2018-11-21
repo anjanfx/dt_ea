@@ -27,33 +27,31 @@
 #property indicator_style2  STYLE_SOLID
 #property indicator_width2  1
 //--- input parameters
-input int               inp_period_rsi = 13;
-input int               inp_period_sto = 8;
-input int               inp_period_sk  = 5;
-input int               inp_period_sd  = 3;
-input ENUM_MA_METHOD    inp_ma_method  = MODE_SMA;
+input int               inp_period_rsi = 13; //RSI period
+input int               inp_period_sto = 8;  //STO period
+input int               inp_period_sk  = 5;  //K period
+input int               inp_period_sd  = 3;  //D period
+input ENUM_MA_METHOD    inp_ma_method  = MODE_SMA;//MA Calc Method
 //--- indicator buffers
 double         MainBuffer[];
 double         SignalBuffer[];
 double         StoRSI[];
 double         RSI[];
 double         RatesTotal[];
-
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
 //+------------------------------------------------------------------+
 int OnInit()
-  {
+{
 //--- indicator buffers mapping
    SetIndexBuffer(0,MainBuffer);
    SetIndexBuffer(1,SignalBuffer);
    SetIndexBuffer(2,StoRSI, INDICATOR_CALCULATIONS);
    SetIndexBuffer(3,RSI, INDICATOR_CALCULATIONS);
    SetIndexBuffer(4,RatesTotal, INDICATOR_CALCULATIONS);
-   
 //---
    return(INIT_SUCCEEDED);
-  }
+}
 //+------------------------------------------------------------------+
 //| Custom indicator iteration function                              |
 //+------------------------------------------------------------------+
@@ -82,12 +80,19 @@ int OnCalculate(const int rates_total,
       else  
          StoRSI[i] = 0;
    }   
-   for(int i=limit; i>=0; i--) 
-      MainBuffer[i] = iMAOnArray(StoRSI, 0, inp_period_sk, 0, inp_ma_method, i);
-   for(int i=limit; i>=0; i--) 
-      SignalBuffer[i] = iMAOnArray(MainBuffer, 0, inp_period_sd, 0, inp_ma_method, i);
-//--- return value of prev_calculated for next call
+   for(int i=limit; i>=0; i--) {
+      MainBuffer[i] = iMAOnArray(   
+         StoRSI, 0, inp_period_sk, 
+         0, inp_ma_method, i
+      );
+   }
+   for(int i=limit; i>=0; i--) {
+      SignalBuffer[i] = iMAOnArray(
+         MainBuffer, 0, inp_period_sd, 
+         0, inp_ma_method, i
+      );
+   }
    RatesTotal[0] = rates_total - inp_period_rsi;
    return(rates_total);
-  }
+}
 //+------------------------------------------------------------------+

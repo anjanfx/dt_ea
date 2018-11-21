@@ -4,7 +4,6 @@
 //|                                       http://www.companyname.net |
 //+------------------------------------------------------------------+
 #resource "ModernDtOscillator.ex4"
-
 #include <Indicators\Indicator.mqh>
 //+------------------------------------------------------------------+
 //|                                                                  |

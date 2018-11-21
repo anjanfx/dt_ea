@@ -1,12 +1,15 @@
 #include <stdlib.mqh>
-#include <Arrays\ArrayObj.mqh>
-#include <Arrays\ArrayInt.mqh>
-#include <Arrays\ArrayDouble.mqh>
-#include <Arrays\ArrayString.mqh>
-
+#include <arrays/arrayobj.mqh>
+#include <arrays/arrayint.mqh>
+#include <arrays/arraydouble.mqh>
+#include <arrays/arraystring.mqh>
+#include "SymbolInfo.mqh"
 
 #define VERBOSE_ERROR StringFormat("ERROR(%s) --> %s", ErrorDescription(GetLastError()), __FUNCTION__)
 
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 
 template<typename T>
 class objvector : public CArrayObj
@@ -16,7 +19,19 @@ class objvector : public CArrayObj
    bool Add(T element){ return CArrayObj::Add(element); }
 };
 
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+class SymbolInfo : public CSymbolInfo
+{
+   public: double NormalizeLots(const double lots) const {
+      return floor(lots / this.LotsStep()) * this.LotsStep();
+   }
+};
 
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 enum XSIGNAL_FLAGS
 {
    XNONE          = (0),
@@ -26,21 +41,28 @@ enum XSIGNAL_FLAGS
    XSHORT_WEAK    = (1<<3)
 };
 
-
-class Ticket : public CObject
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+class Ticket : public CObject //Sorts orders by open time for FIFO
 {
  protected:
    int         m_ticket;
    datetime    m_open_time;
  public:
-   Ticket(const int ticket):m_ticket(ticket){
+   Ticket(const int ticket):m_ticket(ticket) 
+   {
       if(this.select())
          m_open_time = OrderOpenTime();
       else
          m_open_time = WRONG_VALUE;
    }
-   virtual bool select() const { return OrderSelect(m_ticket, SELECT_BY_TICKET); }
-   virtual int Compare(const CObject *node, const int mode=0) const override {
+   virtual bool select() const 
+   {
+      return OrderSelect(m_ticket, SELECT_BY_TICKET);
+   }
+   virtual int Compare(const CObject *node, const int mode=0) const override 
+   {
       const Ticket *other = node;
       if(this.m_open_time == WRONG_VALUE || this.m_open_time > other.m_open_time)
          return 1;
@@ -55,21 +77,16 @@ class Ticket : public CObject
    }
 };
 
-
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 class Expert : public CObject
 {
  protected:
    int                  m_magic;
-   string               m_symbol;
-   double               m_tick_step;
-   double               m_lot_step;
-   double               m_lot_min;
-   double               m_lot_max;
-   double               m_digits;
-   double               m_point;
+   SymbolInfo           m_symbol;
    double               m_pip;
    int                  m_pip_mod;
-   MqlTick              m_tick;
    objvector<Ticket*>   m_orders_long;
    objvector<Ticket*>   m_orders_short;
    objvector<Ticket*>   m_positions_long;
@@ -77,12 +94,13 @@ class Expert : public CObject
    objvector<Ticket*>   m_deals_long;
    objvector<Ticket*>   m_deals_short;
  public:
+   Expert(const int magic):m_magic(magic){}
    //EVENT HANDLERS
-   virtual bool on_tick()     { return SymbolInfoTick(m_symbol, m_tick); }
-   virtual bool on_timer()    { return true;}
-   virtual bool on_init(const int magic, const string symbol=NULL);
-   virtual bool on_tester()   { return true;}
-   virtual bool on_deinit(const int reason) { return true; } 
+   virtual bool on_init(const string symbol=NULL);
+   virtual bool on_tick()                    { return m_symbol.RefreshRates();}
+   virtual bool on_timer()                   { return true;}
+   virtual bool on_tester()                  { return true;}
+   virtual bool on_deinit(const int reason)  { return true; } 
    virtual bool on_chartevent(const int    id,
                               const long   &lparam,
                               const double &dparam,
@@ -90,37 +108,38 @@ class Expert : public CObject
    //SIGNALS
    virtual int  signals()     { return 0; }
    
-   static  bool  check_signal(const XSIGNAL_FLAGS signal_flag, const int signals);
+   static  bool check_signal(const XSIGNAL_FLAGS signal_flag, 
+                             const int signals);
  protected:
    virtual bool _refresh_pool();
    virtual bool _refresh_history_pool();
-   virtual bool _market_buy(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0);
-   virtual bool _market_sell(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0);
+   virtual int   _market_buy( double volume, 
+                             int sl=0, 
+                             int tp=0, 
+                             string comment=NULL, 
+                             int slippage=0);
+   virtual int   _market_sell(double volume, 
+                             int sl=0, 
+                             int tp=0, 
+                             string comment=NULL, 
+                             int slippage=0);
    
-   double       _rtick(double price);
-   double       _rlot(double lots);
-
-   
-   
+   double       _rtick(double price) const;
+   double       _rlot(double lots) const;
 };
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 
-bool Expert::on_init(const int magic, const string symbol=NULL)
+bool Expert::on_init(const string symbol=NULL)
 {
-   m_magic = magic;
-   m_symbol = symbol == NULL ? _Symbol : symbol;
-   if(!SymbolSelect(m_symbol, true))
+   if(!m_symbol.Name(symbol == NULL ? _Symbol : symbol))
       return false;
-   m_tick_step = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_SIZE);
-   m_lot_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
-   m_lot_min = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
-   m_lot_max = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX);
-   m_digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
-   m_point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-   if(m_digits == 3 || m_digits == 5){
-      m_pip = m_point * 10;
+   if(m_symbol.Digits() == 3 || m_symbol.Digits() == 5){
+      m_pip = m_symbol.Point() * 10;
       m_pip_mod = 10;
    }else{
-      m_pip = m_point;
+      m_pip = m_symbol.Point();
       m_pip_mod = 1;
    }
    return true;
@@ -136,13 +155,13 @@ bool Expert::_refresh_pool()
    if(total == 0)
       return true;
    bool sort = false;
-   for(int i=total-1; i>=0; --i){
+   for(int i=total-1; i>=0; --i) {
       if(OrderSelect(i, SELECT_BY_POS)
          && OrderSymbol() == Symbol()
          && OrderMagicNumber() == m_magic
       ){
          Ticket *ticket = new Ticket(OrderTicket());
-         switch(OrderType()){
+         switch(OrderType()) {
             case OP_BUY:
                m_positions_long.Add(ticket);
                sort = true;
@@ -177,13 +196,13 @@ bool Expert::_refresh_history_pool()
    m_deals_long.Clear();
    m_deals_short.Clear();
    bool sort = false;
-   for(int i=OrdersHistoryTotal()-1; i>=0; --i){
+   for(int i=OrdersHistoryTotal()-1; i>=0; --i) {
       if(OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)
          && OrderSymbol() == Symbol()
          && OrderMagicNumber() == m_magic
       ){
          Ticket *ticket = new Ticket(OrderTicket());
-         switch(OrderType()){
+         switch(OrderType()) {
             case OP_BUY:
                m_deals_long.Add(ticket);
                sort = true;
@@ -202,61 +221,78 @@ bool Expert::_refresh_history_pool()
    return true;
 }
 
-double Expert::_rtick(const double price)
+double Expert::_rtick(const double price) const
 {
-   return round(price / m_tick_step) * m_tick_step;
+   return m_symbol.NormalizePrice(price);
 }
 
-double Expert::_rlot(const double lots)
+double Expert::_rlot(const double lots) const
 {
-   return floor(lots / m_lot_step) * m_lot_step;
+   return m_symbol.NormalizeLots(lots);
 }
 
-bool Expert::_market_buy(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0)
-{
+int Expert::_market_buy(double volume, 
+                         int sl=0, 
+                         int tp=0, 
+                         string comment=NULL, 
+                         int slippage=0)
+{  
+   if(!m_symbol.RefreshRates())
+      return false;
+   double ask = m_symbol.Ask();
    int ticket = OrderSend(
-      m_symbol, 
+      m_symbol.Name(), 
       OP_BUY, 
       this._rlot(volume), 
-      this._rtick(m_tick.ask), 
+      ask, 
       slippage,
-      sl==0 ? 0.0 : this._rtick(m_tick.ask - sl * m_point),
-      tp==0 ? 0.0 : this._rtick(m_tick.ask + tp * m_point),
+      sl==0 ? 0.0 : this._rtick(ask - sl * m_symbol.Point()),
+      tp==0 ? 0.0 : this._rtick(ask + tp * m_symbol.Point()),
       comment, 
       m_magic
    );
-   return ticket >= 0;
+   return ticket;
 }
 
-bool Expert::_market_sell(double volume, int sl=0, int tp=0, string comment=NULL, int slippage=0)
+int Expert::_market_sell(double volume, 
+                          int sl=0, 
+                          int tp=0, 
+                          string comment=NULL, 
+                          int slippage=0)
 {
+   if(!m_symbol.RefreshRates())
+      return false;
+   double bid = m_symbol.Bid();
    int ticket = OrderSend(
-      m_symbol, 
+      m_symbol.Name(), 
       OP_SELL, 
       this._rlot(volume), 
-      this._rtick(m_tick.bid), 
+      this._rtick(bid), 
       slippage,
-      sl==0 ? 0.0 : this._rtick(m_tick.bid + sl * m_point),
-      tp==0 ? 0.0 : this._rtick(m_tick.bid - tp * m_point),
+      sl==0 ? 0.0 : this._rtick(bid + sl * m_symbol.Point()),
+      tp==0 ? 0.0 : this._rtick(bid - tp * m_symbol.Point()),
       comment, 
       m_magic
    );
-   return ticket >= 0;
+   return ticket;
 }
 
-bool Expert::check_signal(const XSIGNAL_FLAGS signal_flag, const int signals)
+bool Expert::check_signal(const XSIGNAL_FLAGS signal_flag, 
+                          const int signals)
 {
    return bool(signals&signal_flag);
 }
 
 
-
-
-
-
-
-
-
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 
 bool reverse_trade(const int ticket)
 {
@@ -268,7 +304,9 @@ bool reverse_trade(const int ticket)
    }  
    int second_ticket = -1;
    MqlTick tick;
-   if(!SymbolSelect(OrderSymbol(), true) || !SymbolInfoTick(OrderSymbol(), tick))
+   if(!SymbolSelect(OrderSymbol(), true) 
+      || !SymbolInfoTick(OrderSymbol(), tick)
+   )
       return false;
    if(OrderType() == OP_BUY){
       second_ticket = OrderSend(OrderSymbol(), OP_SELL,
@@ -284,14 +322,15 @@ bool reverse_trade(const int ticket)
    return OrderCloseBy(ticket, second_ticket);
 }
 
-string timeframe_to_string(ENUM_TIMEFRAMES timeframe)
+string tf_to_string(ENUM_TIMEFRAMES timeframe)
 {
-   timeframe = timeframe == PERIOD_CURRENT ? (ENUM_TIMEFRAMES) _Period : timeframe;
-   return StringSubstr(EnumToString(PERIOD_D1), 7);
+   if(timeframe == PERIOD_CURRENT)
+      timeframe = (ENUM_TIMEFRAMES)_Period;
+   return StringSubstr(EnumToString(timeframe), 7);
 }
 
-string timeframe_to_string(int timeframe)
+string tf_to_string(int timeframe)
 {
-   return timeframe_to_string((ENUM_TIMEFRAMES)timeframe);
+   return tf_to_string((ENUM_TIMEFRAMES)timeframe);
 }
 
